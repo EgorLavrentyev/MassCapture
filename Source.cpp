@@ -518,7 +518,7 @@ bool get_time(void) {
 	fill_mass(dst_mass, DST_SIZE);
 	
 
-	size_t num_bits = 99999990;
+	size_t num_bits = 99999991;
 	size_t iter = 10;
 	size_t size_bit = SRC_SIZE / 3;
 	std::memcpy(dst_mass1, dst_mass, num_bits / 8);
@@ -547,7 +547,7 @@ bool get_time(void) {
 
 	begin = std::chrono::high_resolution_clock::now();
 	for (int i = 0; i < iter; i++) {
-		result = MassCapture_B(src_mass, 8, num_bits, dst_mass, 0);
+		result = MassCapture_B(src_mass, 0, num_bits, dst_mass, 0);
 	}
 	end = std::chrono::high_resolution_clock::now();
 	elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
@@ -557,7 +557,7 @@ bool get_time(void) {
 
 	begin = std::chrono::high_resolution_clock::now();
 	for (int i = 0; i < iter; i++) {
-		result = math::MassCapture(src_mass, 8, num_bits, dst_mass, 0);
+		result = math::MassCapture(src_mass, 0, num_bits, dst_mass, 0);
 	}
 	end = std::chrono::high_resolution_clock::now();
 	elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
@@ -576,8 +576,6 @@ bool get_time(void) {
 
 	return result;
 }
-
-
 
 
 int main() {
@@ -617,6 +615,7 @@ int main() {
 	//}
 
 	bool result = get_time();
+	//asdfasdf
 
 	return 0;
 }
