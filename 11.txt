@@ -1,0 +1,165 @@
+#ifndef MODULES_MATH_DISRETE_BINARY_FUNCTIONS_H
+#define MODULES_MATH_DISRETE_BINARY_FUNCTIONS_H	1
+
+#include "modules/core/memory.h"
+#include "modules/core/result_codes.h"
+
+#include "binary_operations.h"
+
+#include <cstdint>
+#include <stdexcept>
+
+namespace math
+{
+	//************************************
+	//	Capture a series of "bitlen" bits from "src" at the position
+	//	and store them in "dst" at the position 
+	//************************************
+	inline	Result			MassCapture					( const uint8_t* src , size_t src_bitpos , size_t bitlen , uint8_t* dst , size_t dst_bitpos );
+
+
+}
+
+
+// implementation
+namespace	math
+{
+
+	namespace	details
+	{
+		template<typename Base>
+		inline Result   MassCapture( const uint8_t* src , size_t src_bitpos , size_t bitlen , uint8_t* dst , size_t dst_bitpos )
+		{
+			if ( src == nullptr || dst == nullptr )	return Result::e_pointer;
+			if ( bitlen == 0 )						return Result::noerror;
+
+			/*constexpr*/  size_t base_size = sizeof( Base ) * CHAR_BIT;
+
+			// if ( bitlen is short )
+			size_t bits_written			= 0;
+			size_t dst_start_byte_pos	= dst_bitpos / 8;
+			size_t dst_end_byte_pos		= ( dst_bitpos + bitlen - 1 ) / 8;
+
+			if ( bitlen + dst_bitpos % base_size < base_size )
+			{
+				uint8_t start_byte_mask = GetMask<uint8_t>(dst_bitpos % 8);
+				if ( dst_start_byte_pos == dst_end_byte_pos )
+				{
+					uint8_t	end_byte_mask = GetMask<uint8_t>(( dst_bitpos + bitlen ) % 8);
+					if ( ( dst_bitpos + bitlen ) % 8 == 0 ) end_byte_mask = 0xFF;
+
+					if ( ( src_bitpos + CHAR_BIT ) < ( src_bitpos + bitlen + src_bitpos % CHAR_BIT )  )
+					{
+						dst[dst_bitpos / CHAR_BIT] = dst[dst_bitpos / CHAR_BIT] & ( start_byte_mask | ~end_byte_mask ) | ( ( GetWord<uint8_t>( src , src_bitpos ) << ( dst_bitpos % 8 ) ) & end_byte_mask );
+					}
+					else
+					{
+						dst[dst_bitpos / CHAR_BIT] = ( dst[dst_bitpos / CHAR_BIT] & ( start_byte_mask | ~end_byte_mask ) ) | ( ( src[src_bitpos / CHAR_BIT] >> ( src_bitpos % CHAR_BIT ) << ( dst_bitpos % 8 ) ) & end_byte_mask );
+					}
+
+					return Result::noerror;
+				}
+
+				dst[dst_start_byte_pos] = dst[ dst_start_byte_pos ] & start_byte_mask | ( GetWord<uint8_t>( src , src_bitpos ) << dst_bitpos % 8 );
+				bits_written += 8 - dst_bitpos % 8;
+			}
+			else
+			{
+				const	Base* wsrc	= reinterpret_cast<const Base*>( src );
+						Base* wdst	= reinterpret_cast<Base*>( dst );
+
+				//stage 1
+				//Make dst_bitpos % base_size equal to 0, that is, align it
+				if ( dst_bitpos % base_size != 0 ) // alignment
+				{
+					wdst[dst_bitpos / base_size] = wdst[dst_bitpos / base_size] & ( GetMask<Base>(dst_bitpos % base_size) ) | ( GetWord<Base>( src , src_bitpos ) << dst_bitpos % base_size );
+
+					bits_written = base_size - dst_bitpos % base_size;
+				}
+
+				//precomputation for stage 2
+				size_t left_shift	= base_size - ( src_bitpos + bits_written ) % base_size;
+				size_t right_shift	=             ( src_bitpos + bits_written ) % base_size;
+				wsrc				+=            ( src_bitpos + bits_written ) / base_size;
+				wdst				+=            ( dst_bitpos + bits_written ) / base_size;
+
+				size_t nwords = 0;
+				if ( bitlen >= base_size + bits_written )
+				{
+					nwords = ( bitlen - bits_written ) / base_size;
+					bits_written += base_size * nwords; // will be written after stage 2
+				}
+
+				//stage 2, central part
+				//copying word by word
+				const Base shift_mask = ~GetMask<Base>( left_shift );
+				for (size_t i = 0 ; i < nwords; i++ )
+				{
+					*wdst = ( *( wsrc + 1 ) << left_shift )&shift_mask | ( *wsrc >> right_shift );
+					wsrc++;
+					wdst++;
+				}
+			}
+
+			//stage 3
+			// tail
+			dst_start_byte_pos	= ( dst_bitpos + bits_written ) / 8;
+
+			size_t nbytes = 1 + dst_end_byte_pos - dst_start_byte_pos;
+			for ( size_t i = 0; i+1 < nbytes; ++i )
+			{
+				dst[dst_start_byte_pos+i] = GetWord<uint8_t>( src , src_bitpos + bits_written + i*8 );
+			}
+
+			if ( nbytes > 0 )
+			{
+				const	size_t	bit_pos				= src_bitpos + bits_written + ( nbytes - 1 ) * CHAR_BIT;
+				const	size_t	end_byte_shift		= ( dst_bitpos + bitlen ) % 8;
+						uint8_t	end_byte_mask		= GetMask<uint8_t>( end_byte_shift );
+
+				if ( end_byte_shift == 0 ) end_byte_mask = 0xFF;
+
+				if ( ( bit_pos + CHAR_BIT ) < ( src_bitpos + bitlen + bit_pos % CHAR_BIT )  )
+				{
+					dst[dst_end_byte_pos] = ( dst[dst_end_byte_pos] & ~end_byte_mask ) | ( GetWord<uint8_t>( src, bit_pos ) & end_byte_mask );
+				}
+				else
+				{
+					dst[dst_end_byte_pos] = ( dst[dst_end_byte_pos] & ~end_byte_mask ) | ( ( src[bit_pos / CHAR_BIT] >> ( bit_pos % CHAR_BIT ) ) & end_byte_mask );
+				}
+			}
+
+			return Result::noerror;
+		}
+	} //end namespace
+
+	#pragma region MassCapture
+	inline Result   MassCapture( const uint8_t* src , size_t src_bitpos , size_t bitlen , uint8_t* dst , size_t dst_bitpos )
+	{
+#ifdef WIN32
+		return details::MassCapture<uint32_t>( src, src_bitpos, bitlen, dst, dst_bitpos );
+#else
+		return details::MassCapture<uint64_t>( src, src_bitpos, bitlen, dst, dst_bitpos );
+#endif
+	}
+	#pragma endregion
+
+
+	template<typename Type>
+	inline	uint32_t		MassCountOnBits( const Type* src, size_t src_len )
+	{
+		if ( src == nullptr )			return	0;
+		if ( src_len == 0 )				return	0;
+
+		uint32_t	err_cnt	= 0;
+
+		for (size_t i = 0; i < src_len; ++i)
+		{
+			err_cnt	+= static_cast<uint32_t>( math::CountOnBits( src[i] ) );
+		}
+
+		return	err_cnt;
+	}
+}
+
+#endif
