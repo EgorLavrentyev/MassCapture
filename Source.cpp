@@ -541,16 +541,16 @@ int* get_rand_pos_dst(std::map<int, int> src_map) {
 bool get_time(void) {
 	uint8_t* src_mass = new uint8_t[SRC_SIZE];
 	uint8_t* dst_mass = new uint8_t[DST_SIZE];
-	uint8_t* dst_mass1 = new uint8_t[DST_SIZE];
+	uint8_t* dst_mass_1 = new uint8_t[DST_SIZE];
 	fill_mass(src_mass, SRC_SIZE);
 	fill_mass(dst_mass, DST_SIZE);
 
 	int i = 0;
 	size_t num_bits = 0;
 	size_t iter = 10000;
-	std::memcpy(dst_mass1, dst_mass, DST_SIZE / 8);
+	std::memcpy(dst_mass_1, dst_mass, DST_SIZE / 8);
 	bool result = 0;
-	bool are_equal = std::equal(dst_mass, dst_mass + DST_SIZE / 8, dst_mass1);
+	bool are_equal = std::equal(dst_mass, dst_mass + DST_SIZE / 8, dst_mass_1);
 	//result = MassCapture_primitive(src_mass, 0, num_bits, dst_mass1, 0);
 
 	std::map<int, int> src_map = get_rand_pos_and_len_src(iter);
@@ -595,17 +595,17 @@ bool get_time(void) {
 
 	begin = std::chrono::high_resolution_clock::now();
 	for (const auto& elem : src_map) {
-		result = math::MassCapture(src_mass, elem.first, elem.second, dst_mass1, dst_index_arr[i]);
+		result = math::MassCapture(src_mass, elem.first, elem.second, dst_mass_1, dst_index_arr[i]);
 		i++;
 	}
 	end = std::chrono::high_resolution_clock::now();
 	elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-	are_equal = std::equal(dst_mass, dst_mass + DST_SIZE / 8, dst_mass1);
+	are_equal = std::equal(dst_mass, dst_mass + DST_SIZE / 8, dst_mass_1);
 	std::cout << "MassCapture = " << double(num_bits / (8 * 1024 * 1024)) / (elapsed_ms.count() / 1000.0) << " MB/s\n";
 	if (are_equal)
-		std::cout << "Success" << std::endl;
+		std::cout << "Result is correct" << std::endl;
 	else
-		std::cout << "Failure" << std::endl;
+		std::cout << "Result is incorrect" << std::endl;
 	//std::cout << are_equal << std::endl;
 
 	//i = 0;
