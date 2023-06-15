@@ -8,11 +8,12 @@
 #include "binary_operations.h"
 #include <cstdint>
 #include <stdexcept>
+#include <map>
 
 #define MODULES_MATH_DISRETE_BINARY_FUNCTIONS_H	1
 
-#define SRC_SIZE 100000000
-#define DST_SIZE 100000000
+#define SRC_SIZE 1000000
+#define DST_SIZE 1000000
 
 //#define SRC_SIZE 5
 //#define DST_SIZE 5
@@ -214,6 +215,8 @@ bool MassCapture_A(const uint8_t* src_mass, size_t src_pos_bit, size_t size_bit,
 	int flag1 = src_pos_in_byte == 0 ? 0 : 1;
 	int flag2 = src_end_pos_in_byte == 0 ? 0 : 1;
 	size_t full_bytes_left = (size_bit - (8 - src_pos_in_byte) * flag1 - src_end_pos_in_byte * flag2) / 8;
+	if (size_bit <= 8)
+		full_bytes_left = 0;
 
 	//  опирую 1-й неполный байт из src, если он есть
 	size_t bits_left = min(size_bit, 8 - src_pos_in_byte);
@@ -293,6 +296,8 @@ bool MassCapture_B(const uint8_t* src_mass, size_t src_pos_bit, size_t size_bit,
 	int flag1 = dst_pos_in_byte == 0 ? 0 : 1;
 	int flag2 = dst_end_pos_in_byte == 0 ? 0 : 1;
 	size_t full_bytes_left = (size_bit - (8 - dst_pos_in_byte) * flag1 - dst_end_pos_in_byte * flag2) / 8;
+	if (size_bit <= 8)
+		full_bytes_left = 0;
 
 	//  опирую в 1-й неполный байт dst, если он есть
 	size_t bits_left = min(size_bit, 8 - dst_pos_in_byte);
@@ -509,6 +514,29 @@ namespace	math
 	}
 }
 
+//function to get map of random bit indexes and lengths of bits to copy
+std::map<int, int> get_rand_pos_and_len_src(int num) {
+	std::map<int, int> src_map;
+	for (int i = 0; i < num; i++) {
+		int index = rand() % (SRC_SIZE * 8); // index in [0, src_bit_size - 1]
+		int max_len = SRC_SIZE * 8 - index;
+		int len = rand() % (max_len + 1);
+		src_map.insert({ index, len });
+	}
+	return src_map;
+}
+
+//function to get an array of rand positions in dst according to src_map
+int* get_rand_pos_dst(std::map<int, int> src_map) {
+	int* pos_arr = new int[src_map.size()];
+	int i = 0;
+	for (const auto& elem : src_map) {
+		int max_index = DST_SIZE * 8 - elem.second;
+		pos_arr[i] = rand() % (max_index + 1);
+		i++;
+	}
+	return pos_arr;
+}
 
 bool get_time(void) {
 	uint8_t* src_mass = new uint8_t[SRC_SIZE];
@@ -516,15 +544,21 @@ bool get_time(void) {
 	uint8_t* dst_mass1 = new uint8_t[DST_SIZE];
 	fill_mass(src_mass, SRC_SIZE);
 	fill_mass(dst_mass, DST_SIZE);
-	
 
-	size_t num_bits = 99999991;
-	size_t iter = 10;
-	size_t size_bit = SRC_SIZE / 3;
-	std::memcpy(dst_mass1, dst_mass, num_bits / 8);
+	int i = 0;
+	size_t num_bits = 0;
+	size_t iter = 10000;
+	std::memcpy(dst_mass1, dst_mass, DST_SIZE / 8);
 	bool result = 0;
-	bool are_equal = std::equal(dst_mass, dst_mass + num_bits / 8, dst_mass1);
-	result = MassCapture_primitive(src_mass, 0, num_bits, dst_mass1, 0);
+	bool are_equal = std::equal(dst_mass, dst_mass + DST_SIZE / 8, dst_mass1);
+	//result = MassCapture_primitive(src_mass, 0, num_bits, dst_mass1, 0);
+
+	std::map<int, int> src_map = get_rand_pos_and_len_src(iter);
+	int* dst_index_arr = get_rand_pos_dst(src_map);
+
+	for (const auto& elem : src_map) {
+		num_bits += elem.second;
+	}
 
 	auto begin = std::chrono::high_resolution_clock::now();
 	/*for (int i = 0; i < iter; i++) {
@@ -535,44 +569,54 @@ bool get_time(void) {
 	auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
 	//std::cout << "Slow_func = " << double (iter * num_bits / (8 * 1024 * 1024)) /(elapsed_ms.count() / 1000.0) << " MB/s\n";
 
-	/*begin = std::chrono::high_resolution_clock::now();
-	for (int i = 0; i < iter; i++) {
-		result = MassCapture_A(src_mass, 9, num_bits, dst_mass, 0);
-	}
-	end = std::chrono::high_resolution_clock::now();
-	elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-	//are_equal = std::equal(dst_mass, dst_mass + num_bits / 8, dst_mass1);
-	std::cout << "Func_A (1 read, 2 writes) = " << double(iter * num_bits / (8 * 1024 * 1024)) / (elapsed_ms.count() / 1000.0) << " MB/s\n";
-	//std::cout << are_equal << std::endl;*/
+	//begin = std::chrono::high_resolution_clock::now();
+	//for (const auto& elem : src_map) {
+	//	result = MassCapture_A(src_mass, elem.first, elem.second, dst_mass1, dst_index_arr[i]);
+	//	i++;
+	//}
+	//end = std::chrono::high_resolution_clock::now();
+	//elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+	////are_equal = std::equal(dst_mass, dst_mass + num_bits / 8, dst_mass1);
+	//std::cout << "Func_A (2 reads, 1 write) = " << double(num_bits / (8 * 1024 * 1024)) / (elapsed_ms.count() / 1000.0) << " MB/s\n";
+	////std::cout << are_equal << std::endl;
+	//i = 0;
 
 	begin = std::chrono::high_resolution_clock::now();
-	for (int i = 0; i < iter; i++) {
-		result = MassCapture_B(src_mass, 0, num_bits, dst_mass, 0);
+	for (const auto& elem : src_map) {
+		result = MassCapture_B(src_mass, elem.first, elem.second, dst_mass, dst_index_arr[i]);
+		i++;
 	}
 	end = std::chrono::high_resolution_clock::now();
 	elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
 	//are_equal = std::equal(dst_mass, dst_mass + num_bits / 8, dst_mass1);
-	std::cout << "Func_B (2 reads, 1 write) = " << double(iter * num_bits / (8 * 1024 * 1024)) / (elapsed_ms.count() / 1000.0) << " MB/s\n";
+	std::cout << "Func_B (2 reads, 1 write) = " << double(num_bits / (8 * 1024 * 1024)) / (elapsed_ms.count() / 1000.0) << " MB/s\n";
 	//std::cout << are_equal << std::endl;
+	i = 0;
 
 	begin = std::chrono::high_resolution_clock::now();
-	for (int i = 0; i < iter; i++) {
-		result = math::MassCapture(src_mass, 0, num_bits, dst_mass, 0);
+	for (const auto& elem : src_map) {
+		result = math::MassCapture(src_mass, elem.first, elem.second, dst_mass1, dst_index_arr[i]);
+		i++;
 	}
 	end = std::chrono::high_resolution_clock::now();
 	elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-	//are_equal = std::equal(dst_mass, dst_mass + num_bits / 8, dst_mass1);
-	std::cout << "MassCapture = " << double(iter * num_bits / (8 * 1024 * 1024)) / (elapsed_ms.count() / 1000.0) << " MB/s\n";
+	are_equal = std::equal(dst_mass, dst_mass + DST_SIZE / 8, dst_mass1);
+	std::cout << "MassCapture = " << double(num_bits / (8 * 1024 * 1024)) / (elapsed_ms.count() / 1000.0) << " MB/s\n";
+	if (are_equal)
+		std::cout << "Success" << std::endl;
+	else
+		std::cout << "Failure" << std::endl;
 	//std::cout << are_equal << std::endl;
 
-	auto begin1 = std::chrono::high_resolution_clock::now();
-	//num_bits /= 8;
-	for (int i = 0; i < iter; i++) {
-		result = std::memcpy(dst_mass, src_mass, num_bits / 8);
-	}
-	auto end1 = std::chrono::high_resolution_clock::now();
-	auto elapsed_ms1 = std::chrono::duration_cast<std::chrono::milliseconds>(end1 - begin1);
-	std::cout << "std::memcpy() = " << double (iter * num_bits / (8 * 1024 * 1024)) / (elapsed_ms1.count() / 1000.0) << " MB/s";
+	//i = 0;
+	//auto begin1 = std::chrono::high_resolution_clock::now();
+	////num_bits /= 8;
+	//for (int i = 0; i < iter; i++) {
+	//	result = std::memcpy(dst_mass, src_mass, DST_SIZE / 8);
+	//}
+	//auto end1 = std::chrono::high_resolution_clock::now();
+	//auto elapsed_ms1 = std::chrono::duration_cast<std::chrono::milliseconds>(end1 - begin1);
+	//std::cout << "std::memcpy() = " << double (iter * num_bits / (8 * 1024 * 1024)) / (elapsed_ms1.count() / 1000.0) << " MB/s";
 
 	return result;
 }
@@ -615,7 +659,14 @@ int main() {
 	//}
 
 	bool result = get_time();
-	//asdfasdf
+	//auto map = get_rand_pos_and_len_src(10);
+	//int* dst_arr = get_rand_pos_dst(map);
+	//int i = 0;
+	//for (const auto& elem : map)
+	//{
+	//	std::cout << elem.first << " " << elem.second << " " << dst_arr[i] << "\n";
+	//	i++;
 
+	//}
 	return 0;
 }
