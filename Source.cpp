@@ -314,11 +314,12 @@ bool MassCapture_B(const uint8_t* src_mass, size_t src_pos_bit, size_t size_bit,
 	//TODO: 
 	//	рассмотреть случай когда массив слишком маленький и поделить на слова нельзя
 
-	// Копирую в 1-й неполный байт dst, если он есть
 	if (size_bit + dst_pos_bit % WORD_SIZE < WORD_SIZE) {
 
 		return MassCapture_primitive(src_mass, src_pos_bit, size_bit, dst_mass, dst_pos_bit);
 	}
+
+	// Копирую в 1-й неполный байт dst, если он есть
 	uint64_t* wdst_mass = reinterpret_cast<uint64_t*>(dst_mass);
 	const uint64_t* wsrc_mass = reinterpret_cast<const uint64_t*>(src_mass);
 
