@@ -289,16 +289,6 @@ bool MassCapture_B(const uint8_t* src_mass, size_t src_pos_bit, size_t size_bit,
 	}
 
 	// Начальные позиции
-	size_t src_pos_byte = src_pos_bit / 8;
-	size_t src_pos_in_byte = src_pos_bit % 8;
-	size_t dst_pos_byte = dst_pos_bit / 8;
-	size_t dst_pos_in_byte = dst_pos_bit % 8;
-	size_t dst_end_pos_in_byte = (dst_pos_bit + size_bit) % 8;
-	int flag1 = dst_pos_in_byte == 0 ? 0 : 1;
-	int flag2 = dst_end_pos_in_byte == 0 ? 0 : 1;
-	size_t full_bytes_left = (size_bit - (8 - dst_pos_in_byte) * flag1 - dst_end_pos_in_byte * flag2) / 8;
-	if (size_bit <= 8)
-		full_bytes_left = 0;
 	size_t bits_written = 0;
 	size_t dst_pos_in_word = dst_pos_bit % WORD_SIZE;
 	size_t src_pos_in_word = src_pos_bit % WORD_SIZE;
@@ -311,12 +301,13 @@ bool MassCapture_B(const uint8_t* src_mass, size_t src_pos_bit, size_t size_bit,
 	if (size_bit <= WORD_SIZE)
 		full_words_left = 0;
 
+	//Если size_bit небольшой
 	if (size_bit + dst_pos_bit % WORD_SIZE < WORD_SIZE) {
 
 		return MassCapture_primitive(src_mass, src_pos_bit, size_bit, dst_mass, dst_pos_bit);
 	}
 
-	// Копирую в 1-й неполный байт dst, если он есть
+	// Выравнивание по слову
 	uint64_t* wdst_mass = reinterpret_cast<uint64_t*>(dst_mass);
 	const uint64_t* wsrc_mass = reinterpret_cast<const uint64_t*>(src_mass);
 
@@ -351,7 +342,7 @@ bool MassCapture_B(const uint8_t* src_mass, size_t src_pos_bit, size_t size_bit,
 	//print_bytes_color(dst_mass, DST_SIZE, dst_pos_bit, 28, 10);
 	
 
-	// Копирую в полные байты dst
+	// Копирую в полные слова в dst
 	uint64_t mask = (0xffffffffffffffff << src_pos_in_word);
 	uint64_t mask1 = 0xffffffffffffffff << (WORD_SIZE - dst_pos_in_word);
 	
@@ -370,7 +361,6 @@ bool MassCapture_B(const uint8_t* src_mass, size_t src_pos_bit, size_t size_bit,
 
 	// Копирую в хвост
 	bits_left = dst_end_pos_in_word * wflag2;
-	dst_pos_in_byte = 0;
 	src_pos_bit += bits_written;
 	dst_pos_bit += bits_written;
 
@@ -624,7 +614,7 @@ bool get_time(void) {
 		//if (!std::equal(dst_mass, dst_mass + DST_SIZE / 8, dst_mass_1)) {
 		//	std::cout << elem.first << " " << elem.second << " " << dst_index_arr[i] << "\n";
 			//}
-			i++;		
+		i++;		
 	}
 
 	end = std::chrono::high_resolution_clock::now();
