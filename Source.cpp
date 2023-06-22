@@ -207,7 +207,7 @@ bool MassCapture_A(const uint8_t* src_mass, size_t src_pos_bit, size_t size_bit,
 		return false;
 	}
 
-	// Начальные позиции
+	// Начальные вычисления
 	size_t src_pos_byte = src_pos_bit / 8;
 	size_t src_pos_in_byte = src_pos_bit % 8;
 	size_t dst_pos_byte = dst_pos_bit / 8;
@@ -288,7 +288,7 @@ bool MassCapture_B(const uint8_t* src_mass, size_t src_pos_bit, size_t size_bit,
 		return false;
 	}
 
-	// Начальные позиции
+	// Initial calculation
 	size_t bits_written = 0;
 	size_t dst_pos_in_word = dst_pos_bit % WORD_SIZE;
 	size_t src_pos_in_word = src_pos_bit % WORD_SIZE;
@@ -301,13 +301,13 @@ bool MassCapture_B(const uint8_t* src_mass, size_t src_pos_bit, size_t size_bit,
 	if (size_bit <= WORD_SIZE)
 		full_words_left = 0;
 
-	//Если size_bit небольшой
+	// If size_bit is small
 	if (size_bit + dst_pos_bit % WORD_SIZE < WORD_SIZE) {
 
 		return MassCapture_primitive(src_mass, src_pos_bit, size_bit, dst_mass, dst_pos_bit);
 	}
 
-	// Выравнивание по слову
+	// Alignment in dst array
 	uint64_t* wdst_mass = reinterpret_cast<uint64_t*>(dst_mass);
 	const uint64_t* wsrc_mass = reinterpret_cast<const uint64_t*>(src_mass);
 
@@ -342,7 +342,7 @@ bool MassCapture_B(const uint8_t* src_mass, size_t src_pos_bit, size_t size_bit,
 	//print_bytes_color(dst_mass, DST_SIZE, dst_pos_bit, 28, 10);
 	
 
-	// Копирую в полные слова в dst
+	// Copy words one by one (2 reads 1 write)
 	uint64_t mask = (0xffffffffffffffff << src_pos_in_word);
 	uint64_t mask1 = 0xffffffffffffffff << (WORD_SIZE - dst_pos_in_word);
 	
@@ -359,7 +359,7 @@ bool MassCapture_B(const uint8_t* src_mass, size_t src_pos_bit, size_t size_bit,
 	//std::cout << std::setw(20) << "dst_mass: ";
 	//print_bytes_color(dst_mass, DST_SIZE, dst_pos_bit, 63, 10);
 
-	// Копирую в хвост
+	// Copy tail
 	bits_left = dst_end_pos_in_word * wflag2;
 	src_pos_bit += bits_written;
 	dst_pos_bit += bits_written;
