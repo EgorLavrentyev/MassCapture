@@ -13,11 +13,11 @@
 #define MODULES_MATH_DISRETE_BINARY_FUNCTIONS_H	1
 #define WORD_SIZE 64
 
-//#define SRC_SIZE 1000000
-//#define DST_SIZE 1000000
+#define SRC_SIZE 1000000
+#define DST_SIZE 1000000
 
-#define SRC_SIZE 100
-#define DST_SIZE 100
+//#define SRC_SIZE 100
+//#define DST_SIZE 100
 
 void fill_mass(unsigned char mass[], size_t size) {
 	for (unsigned i = 0; i < size; i++) {
@@ -41,7 +41,7 @@ void print_bytes(uint8_t* a, int size) {
 }
 
 
-void print_bytes_color(uint8_t* a, int size, size_t pos_bit, size_t size_bit, int color) {
+void print_bytes_color(const uint8_t* a, int size, size_t pos_bit, size_t size_bit, int color) {
 	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 	for (size_t k = 0; k < size; k++) {
 		for (size_t i = 0; i < 8; i++) {
@@ -311,9 +311,6 @@ bool MassCapture_B(const uint8_t* src_mass, size_t src_pos_bit, size_t size_bit,
 	if (size_bit <= WORD_SIZE)
 		full_words_left = 0;
 
-	//TODO: 
-	//	рассмотреть случай когда массив слишком маленький и поделить на слова нельзя
-
 	if (size_bit + dst_pos_bit % WORD_SIZE < WORD_SIZE) {
 
 		return MassCapture_primitive(src_mass, src_pos_bit, size_bit, dst_mass, dst_pos_bit);
@@ -324,7 +321,7 @@ bool MassCapture_B(const uint8_t* src_mass, size_t src_pos_bit, size_t size_bit,
 	const uint64_t* wsrc_mass = reinterpret_cast<const uint64_t*>(src_mass);
 
 	size_t bits_left = min(size_bit, WORD_SIZE - dst_pos_in_word);
-	bits_written += bits_left * flag1;
+	bits_written += bits_left * wflag1;
 	while (bits_left % WORD_SIZE)
 	{
 		size_t bits_to_copy = min(bits_left, WORD_SIZE - src_pos_in_word);
@@ -348,7 +345,11 @@ bool MassCapture_B(const uint8_t* src_mass, size_t src_pos_bit, size_t size_bit,
 			src_pos_in_word = 0;
 		}
 	}
-
+	//std::cout << std::setw(20) << "src_mass: ";
+	//print_bytes_color(src_mass, DST_SIZE, src_pos_bit, 28, 10);
+	//std::cout << std::setw(20) << "dst_mass: ";
+	//print_bytes_color(dst_mass, DST_SIZE, dst_pos_bit, 28, 10);
+	
 
 	// Копирую в полные байты dst
 	uint64_t mask = (0xffffffffffffffff << src_pos_in_word);
@@ -359,8 +360,13 @@ bool MassCapture_B(const uint8_t* src_mass, size_t src_pos_bit, size_t size_bit,
 		uint64_t word = 0;
 		word |= (wsrc_mass[src_pos_word++] & mask) >> src_pos_in_word;
 		word |= (wsrc_mass[src_pos_word] & (~mask)) << (WORD_SIZE - src_pos_in_word);
-		wdst_mass[dst_pos_byte++] = word;
+		wdst_mass[dst_pos_word++] = word;
 	}
+
+	//std::cout << std::setw(20) << "src_mass: ";
+	//print_bytes_color(src_mass, DST_SIZE, src_pos_bit, 63, 10);
+	//std::cout << std::setw(20) << "dst_mass: ";
+	//print_bytes_color(dst_mass, DST_SIZE, dst_pos_bit, 63, 10);
 
 	// Копирую в хвост
 	bits_left = dst_end_pos_in_word * wflag2;
@@ -368,7 +374,7 @@ bool MassCapture_B(const uint8_t* src_mass, size_t src_pos_bit, size_t size_bit,
 	src_pos_bit += bits_written;
 	dst_pos_bit += bits_written;
 
-	MassCapture_A(src_mass, src_pos_bit, bits_left, dst_mass, dst_pos_bit);
+	MassCapture_primitive(src_mass, src_pos_bit, bits_left, dst_mass, dst_pos_bit);
 
 	/*while (bits_left % 8) {
 		size_t bits_to_copy = min(bits_left, 8 - src_pos_in_byte);
@@ -546,12 +552,18 @@ namespace	math
 
 //function to get map of random bit indexes and lengths of bits to copy
 std::map<int, int> get_rand_pos_and_len_src(int num) {
+	size_t max_iter = 100000;
 	std::map<int, int> src_map;
-	for (int i = 0; i < num; i++) {
+	int i = 0;
+	while (src_map.size() != num) {
 		int index = rand() % (SRC_SIZE * 8); // index in [0, src_bit_size - 1]
 		int max_len = SRC_SIZE * 8 - index;
 		int len = rand() % (max_len + 1);
 		src_map.insert({ index, len });
+		i++;
+		if (i == max_iter)
+			break;
+
 	}
 	return src_map;
 }
@@ -577,13 +589,13 @@ bool get_time(void) {
 
 	int i = 0;
 	size_t num_bits = 0;
-	size_t iter = 10000;
+	size_t copy_num = 100000;
+	size_t iter = 100;
 	std::memcpy(dst_mass_1, dst_mass, DST_SIZE / 8);
 	bool result = 0;
 	bool are_equal = std::equal(dst_mass, dst_mass + DST_SIZE / 8, dst_mass_1);
-	//result = MassCapture_primitive(src_mass, 0, num_bits, dst_mass1, 0);
 
-	std::map<int, int> src_map = get_rand_pos_and_len_src(iter);
+	std::map<int, int> src_map = get_rand_pos_and_len_src(copy_num);
 	int* dst_index_arr = get_rand_pos_dst(src_map);
 
 	for (const auto& elem : src_map) {
@@ -591,35 +603,30 @@ bool get_time(void) {
 	}
 
 	auto begin = std::chrono::high_resolution_clock::now();
-	/*for (int i = 0; i < iter; i++) {
-		result = MassCapture(src_mass, 0, num_bits, dst_mass, 0);
-	}*/
-
+	for (const auto& elem : src_map) {
+		result = MassCapture_primitive(src_mass, elem.first, elem.second, dst_mass, dst_index_arr[i]);
+		//result = math::MassCapture(src_mass, elem.first, elem.second, dst_mass_1, dst_index_arr[i]);
+		//if (!std::equal(dst_mass, dst_mass + DST_SIZE / 8, dst_mass_1)) {
+		//	std::cout << elem.first << " " << elem.second << " " << dst_index_arr[i] << "\n";
+			//}
+		i++;
+	}
+	i = 0;
 	auto end = std::chrono::high_resolution_clock::now();
 	auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-	//std::cout << "Slow_func = " << double (iter * num_bits / (8 * 1024 * 1024)) /(elapsed_ms.count() / 1000.0) << " MB/s\n";
-
-	//begin = std::chrono::high_resolution_clock::now();
-	//for (const auto& elem : src_map) {
-	//	result = MassCapture_A(src_mass, elem.first, elem.second, dst_mass1, dst_index_arr[i]);
-	//	i++;
-	//}
-	//end = std::chrono::high_resolution_clock::now();
-	//elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-	////are_equal = std::equal(dst_mass, dst_mass + num_bits / 8, dst_mass1);
-	//std::cout << "Func_A (2 reads, 1 write) = " << double(num_bits / (8 * 1024 * 1024)) / (elapsed_ms.count() / 1000.0) << " MB/s\n";
-	////std::cout << are_equal << std::endl;
-	//i = 0;
+	//are_equal = std::equal(dst_mass, dst_mass + num_bits / 8, dst_mass1);
+	std::cout << "Func_primitive (bit by bit) = " << double(num_bits / (8 * 1024 * 1024)) / (elapsed_ms.count() / 1000.0) << " MB/s\n";
 
 	begin = std::chrono::high_resolution_clock::now();
 	for (const auto& elem : src_map) {
 		result = MassCapture_B(src_mass, elem.first, elem.second, dst_mass, dst_index_arr[i]);
-		result = math::MassCapture(src_mass, elem.first, elem.second, dst_mass_1, dst_index_arr[i]);
-		/*if (!std::equal(dst_mass, dst_mass + DST_SIZE / 8, dst_mass_1)) {
-			std::cout << elem.first << " " << elem.second << " " << dst_index_arr[i] << "\n";
-		}*/
-		i++;
+		//result = math::MassCapture(src_mass, elem.first, elem.second, dst_mass_1, dst_index_arr[i]);
+		//if (!std::equal(dst_mass, dst_mass + DST_SIZE / 8, dst_mass_1)) {
+		//	std::cout << elem.first << " " << elem.second << " " << dst_index_arr[i] << "\n";
+			//}
+			i++;		
 	}
+
 	end = std::chrono::high_resolution_clock::now();
 	elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
 	//are_equal = std::equal(dst_mass, dst_mass + num_bits / 8, dst_mass1);
@@ -630,12 +637,13 @@ bool get_time(void) {
 	begin = std::chrono::high_resolution_clock::now();
 	for (const auto& elem : src_map) {
 		result = math::MassCapture(src_mass, elem.first, elem.second, dst_mass_1, dst_index_arr[i]);
+		//result = MassCapture_B(src_mass, elem.first, elem.second, dst_mass, dst_index_arr[i]);
 		i++;
 	}
 	end = std::chrono::high_resolution_clock::now();
 	elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
 	are_equal = std::equal(dst_mass, dst_mass + DST_SIZE / 8, dst_mass_1);
-	std::cout << "MassCapture = " << double(num_bits / (8 * 1024 * 1024)) / (elapsed_ms.count() / 1000.0) << " MB/s\n";
+	std::cout << "MassCapture = " << double(num_bits/ (8 * 1024 * 1024)) / (elapsed_ms.count() / 1000.0) << " MB/s\n";
 	if (are_equal)
 		std::cout << "Result is correct" << std::endl;
 	else
@@ -661,51 +669,51 @@ int main() {
 	//uint8_t* dst_mass = new uint8_t[3];
 	//uint8_t dst_mass[3] = { 0xab, 0xcd, 0xef };
 
-	uint8_t* src_mass = new uint8_t[SRC_SIZE];
-	uint8_t* dst_mass = new uint8_t[DST_SIZE];
-	uint8_t* dst_mass_1 = new uint8_t[DST_SIZE];
-	fill_mass(src_mass, SRC_SIZE);
-	fill_mass(dst_mass, DST_SIZE);
-	std::memcpy(dst_mass_1, dst_mass, DST_SIZE / 8);
+	//uint8_t* src_mass = new uint8_t[SRC_SIZE];
+	//uint8_t* dst_mass = new uint8_t[DST_SIZE];
+	//uint8_t* dst_mass_1 = new uint8_t[DST_SIZE];
+	//fill_mass(src_mass, SRC_SIZE);
+	//fill_mass(dst_mass, DST_SIZE);
+	//std::memcpy(dst_mass_1, dst_mass, DST_SIZE / 8);
 
 
-	//uint64_t* wdst = reinterpret_cast<uint64_t*>(dst_mass);
-	//wdst[0] = 0xffffffffffffffff;
+	////uint64_t* wdst = reinterpret_cast<uint64_t*>(dst_mass);
+	////wdst[0] = 0xffffffffffffffff;
 
-	size_t src_pos_bit = 0, size_bit = 0, dst_pos_bit = 0;
+	//size_t src_pos_bit = 0, size_bit = 0, dst_pos_bit = 0;
 
-	std::cout << "Bit index in source array: ";
-	std::cin >> src_pos_bit;
-	std::cout << "Number of bits to copy: ";
-	std::cin >> size_bit;
-	std::cout << "Bit index in destination array: ";
-	std::cin >> dst_pos_bit;
-	std::cout << std::endl;
+	//std::cout << "Bit index in source array: ";
+	//std::cin >> src_pos_bit;
+	//std::cout << "Number of bits to copy: ";
+	//std::cin >> size_bit;
+	//std::cout << "Bit index in destination array: ";
+	//std::cin >> dst_pos_bit;
+	//std::cout << std::endl;
 
-	std::cout << std::setw(20) << "src_mass: ";
-	print_bytes_color(src_mass, SRC_SIZE, src_pos_bit, size_bit, 10);
-	std::cout << std::setw(20) << "dst_mass: ";
-	print_bytes_color(dst_mass, DST_SIZE, dst_pos_bit, size_bit, 12);
-	
-	bool result = MassCapture_B(src_mass, src_pos_bit, size_bit, dst_mass, dst_pos_bit);
-	result = math::MassCapture(src_mass, src_pos_bit, size_bit, dst_mass_1, dst_pos_bit);
+	//std::cout << std::setw(20) << "src_mass: ";
+	//print_bytes_color(src_mass, SRC_SIZE, src_pos_bit, size_bit, 10);
+	//std::cout << std::setw(20) << "dst_mass: ";
+	//print_bytes_color(dst_mass, DST_SIZE, dst_pos_bit, size_bit, 12);
+	//
+	//bool result = MassCapture_B(src_mass, src_pos_bit, size_bit, dst_mass, dst_pos_bit);
+	//result = math::MassCapture(src_mass, src_pos_bit, size_bit, dst_mass_1, dst_pos_bit);
 
-	if (result) {
-		std::cout << std::setw(20) << "Result: ";
-		print_bytes_color(dst_mass, DST_SIZE, dst_pos_bit, size_bit, 10);
-	}
-	else {
-		std::cout << "Copy failed." << std::endl;
-	}
-	
-	if (std::equal(dst_mass, dst_mass + DST_SIZE / 8, dst_mass_1)) {
-		std::cout << "Correct";
-	}
-	else {
-		std::cout << "Incorrect";
-	}
+	//if (result) {
+	//	std::cout << std::setw(20) << "Result: ";
+	//	print_bytes_color(dst_mass, DST_SIZE, dst_pos_bit, size_bit, 10);
+	//}
+	//else {
+	//	std::cout << "Copy failed." << std::endl;
+	//}
+	//
+	//if (std::equal(dst_mass, dst_mass + DST_SIZE / 8, dst_mass_1)) {
+	//	std::cout << "Correct";
+	//}
+	//else {
+	//	std::cout << "Incorrect";
+	//}
 
-	//bool result = get_time();
+	bool result = get_time();
 	//auto map = get_rand_pos_and_len_src(10);
 	//int* dst_arr = get_rand_pos_dst(map);
 	//int i = 0;
