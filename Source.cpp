@@ -13,6 +13,7 @@
 #define MODULES_MATH_DISRETE_BINARY_FUNCTIONS_H	1
 #define WORD_SIZE 64
 
+
 #define SRC_SIZE 1000000
 #define DST_SIZE 1000000
 
@@ -283,6 +284,7 @@ bool MassCapture_A(const uint8_t* src_mass, size_t src_pos_bit, size_t size_bit,
 	return true;
 }
 
+
 bool MassCapture_B(const uint8_t* src_mass, size_t src_pos_bit, size_t size_bit, uint8_t* dst_mass, size_t dst_pos_bit) {
 	if (src_mass == nullptr || dst_mass == nullptr || size_bit == 0 || src_pos_bit + size_bit - 1 > SRC_SIZE * 8 || dst_pos_bit + size_bit - 1 > DST_SIZE * 8) {
 		return false;
@@ -306,7 +308,7 @@ bool MassCapture_B(const uint8_t* src_mass, size_t src_pos_bit, size_t size_bit,
 
 		return MassCapture_primitive(src_mass, src_pos_bit, size_bit, dst_mass, dst_pos_bit);
 	}
-
+	
 	// Alignment in dst array
 	uint64_t* wdst_mass = reinterpret_cast<uint64_t*>(dst_mass);
 	const uint64_t* wsrc_mass = reinterpret_cast<const uint64_t*>(src_mass);
@@ -515,7 +517,7 @@ namespace	math
 #pragma region MassCapture
 	bool MassCapture(const uint8_t* src, size_t src_bitpos, size_t bitlen, uint8_t* dst, size_t dst_bitpos)
 	{
-#ifdef WIN32
+#ifdef WIN64
 		return details::MassCapture<uint32_t>(src, src_bitpos, bitlen, dst, dst_bitpos);
 #else
 		return details::MassCapture<uint64_t>(src, src_bitpos, bitlen, dst, dst_bitpos);
@@ -605,7 +607,7 @@ bool get_time(void) {
 	auto end = std::chrono::high_resolution_clock::now();
 	auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
 	//are_equal = std::equal(dst_mass, dst_mass + num_bits / 8, dst_mass1);
-	std::cout << "Func_primitive (bit by bit) = " << double(num_bits / (8 * 1024 * 1024)) / (elapsed_ms.count() / 1000.0) << " MB/s\n";
+	//std::cout << "Func_primitive (bit by bit) = " << double(num_bits / (8 * 1024 * 1024)) / (elapsed_ms.count() / 1000.0) << " MB/s\n";
 
 	begin = std::chrono::high_resolution_clock::now();
 	for (const auto& elem : src_map) {
